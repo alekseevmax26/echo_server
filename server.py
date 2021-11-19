@@ -3,33 +3,32 @@ from http import HTTPStatus
 
 
 HOST = "127.0.0.1"
+FORMAT = "utf-8"
 PORT = 11863
 
-
-with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
-
+with socket.create_server((HOST, PORT)) as server:
+    print(f"[STARTING] Server is starting on {HOST}:{PORT}")
     print(f"Binding server {HOST}:{PORT}")
-    s.bind((HOST, PORT))
-    s.listen()
+    server.listen()
 
     while True:
-        status_value = HTTPStatus.OK
-        status_phrase = HTTPStatus(HTTPStatus.OK).phrase
-        conn, address = s.accept()
-        data = conn.recv(1024)
-        data = data.decode("utf-8").strip()
-        print(data)
-        source = conn.getpeername()
+        conn, address = server.accept()
+        data = conn.recv(1024).decode(FORMAT).strip()
+
         for status in HTTPStatus:
-            if data.split()[1] == f'/?status={status.value}':
+            if f"status={status.value}" in data.split()[1]:
                 status_value = status.value
                 status_phrase = status.phrase
                 break
+            else:
+                status_value = HTTPStatus.OK
+                status_phrase = HTTPStatus(HTTPStatus.OK).phrase
 
-        conn.send(f"{data.split()[2]} {status.value} {status_phrase}"
-                  f"\nContent-Type: text/html; charset=utf-8\n"
-                  f"\nRequest Method: {data.split()[0]}"
-                  f"\nRequest Source: {source}"
-                  f"\nResponse Status: {status_value} {status_phrase}"
-                  f"\n{data[4:]}".encode("utf-8"))
+        response_headers = \
+            f"{data.split()[2]} {status_value} {status_phrase}" \
+            f"\r\nContent-Type: text/html; charset=utf-8\r\n\r\n".encode(FORMAT)
+        conn.send(response_headers + f"Request Method: {data.split()[0]}"
+                                     f"\r\nRequest Source: ({HOST},{PORT})"
+                                     f"\r\nResponse Status: {status_value} {status_phrase}"
+                                     f"\r\n{data[4:]}".encode(FORMAT))
         conn.close()
